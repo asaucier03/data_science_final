@@ -1,0 +1,168 @@
+---
+format: html
+mainfont: Georgia
+editor: visual
+page-layout: article
+bibliography: references.bib
+editor_options: 
+  chunk_output_type: console
+---
+
+# Seabird Plastic Ingestion {style="text-align: center"}
+
+#### BIOL 806: R Data Science Final {style="text-align: center"}
+
+#### Abigail Saucier {style="text-align: center"}
+
+### **Introduction** {style="text-align: left"}
+
+Marine ecosystems are complex, and it can be difficult to determine environmental impacts that physical changes can have. Satellites and other automated devices can be used to measure the rise of sea temperatures or the changes in O2 concentration, but they cannot tell us how this change affects organisms [@durant2009]. Researchers have begun to look at using sea birds as environmental indicators for the health of marine ecosystems [@vanfraneker2015]. Often at or near the apex of food chains, sea birds feed on many tropic levels and reside in many different types of marine habitats [@durant2009]. The foraging and breeding behavior of sea birds is often related to the abundance of resources and environmental quality[@jenouvrier2003; @gaston2005]. Correlations to climate change, resource availability and pollutant concentrations have been made to the behavior and success of sea birds [@jenouvrier2003; @monaghan1996; @sandvik2012] Observational changes in sea bird behavior can be used to indicate what part of the ecosystem is struggling.
+
+Plastic pollution is a growing issue in marine environments. The accumulation of plastic particles in marine food chains affects organisms of all tropic levels [@derraik2002; @katsanevakis2008; @savoca2021]. Seabirds can ingest plastics if they mistake the material for prey or can ingest second hand through the fish that they eat [@katsanevakis2008; @wilcox2015]. Plastic particles can disrupt appetites, and toxic chemicals can accumulate in seabirds due to plastics[@ito2013; @ryan1988]. Analyzing the concentration of plastics that sea birds have ingested can indicate the presence of micro plastics in their environment [@codina-garcía2013; @ito2013]. A study was conducted on the seagull and tern colonies that inhabit the Isles of Shoals to investigate the level of plastic ingestion (Figure 1). The seagull colony Appledore Island consists of Great Black-backed gulls (*Laurus marinus*) and Herring gulls (*Laurus argentatus*). White Island and Seavey Island are home to a colony of Common terns (*Sterna hirundo*), and Roseate terns (*Sterna dougallii*). These sea bird colonies have been the focus of many studies as the colonies are well established [@carloni; @nelson2008]. In this data analysis we wanted to see if there were discrepancies in the ingestion of plastic across the four seabird species and if there was any correlation with sex of the birds.
+
+```{r Map of sample collection locations, echo=FALSE}
+#| fig-cap: "Figure 1. Map of the Isles of Shoals with pin points on Appledore Island, White Island, and Seavey Island"
+library(leaflet)
+
+leaflet() %>% 
+  addTiles() %>% 
+  addMarkers(lng=-70.626203,lat=42.969176,popup="Seavey Island") %>%
+  addMarkers(lng=-70.623502,lat=42.968118,popup="White Island") %>% 
+  addMarkers(lng=-70.615998,lat=42.988416,popup="Appledore Island")
+
+```
+
+### **Methods** {style="text-align: left"}
+
+*The data used in this analysis is provided by SHOALS Marine Laboratory, Data Catalog. The researchers who conducted this study allow public use of the data collected.*
+
+This study focused on the plastic ingestion of Great Black-backed Gulls (GBBG), Herring Gulls (HERG), Common Terns (COTE), and Roseate terns (ROST). Deceased Seabirds, seabird pellets, discarded forage fish, and seabird regurgitate were all collected as samples and analyzed for plastic particles. Morphological measurements of Deceased Seabird samples (labeled “adult-xxx” or “chick-xxx”) were taken before GI tracts were dissected and contents were processed through stacked sieves (3.0mm, 2.0mm, and 1.0mm). Seabird pellets discarded forage fish, and regurgitate samples (labeled “diet-xxx”) were also collected from the colonies and processed through stacked sieves[@caldwell].
+
+*Data cleaning and organizing*
+
+The raw data set was imported into R studio and presented as three excel sheets, each sheet was assigned to its own object to make the data frames easier to work with (using “readxl” and “openxlsx” packages)[@philippschauberger2024; @hadleywickham2023]. Two of the data sets were merged using “left join” so that each sample ID number (“adult-xxx”, “chick-xxx”, and “diet-xxx”) contained information about the seabird the sample was collected from. Data cleaning and statistical tests were performed using functions from “tidyverse” and “dplyr” packages[@hadleywickham2019; @hadleywickham2023; @lionelhenry2024]. A box plot was created to show the differences in plastic ingestion by species, the terms “Gull Species” and “Tern Species” were used when the distinct species could not be determined by researchers. A one-way analysis of variance (ANOVA) was conducted to determine the influence of species on plastic ingestion. A box plot for plastic ingestion by sex was created and faceted by species for better visualization. The correlation between sex and species on plastic ingestion was accessed using a linear regression model[@johnfox2019].
+
+### **Results** {style="text-align: left"}
+
+```{r load packages and data, include=FALSE}
+library(openxlsx)
+library(tidyverse)
+library(readxl)
+library(tidyselect)
+library(dplyr)
+library(car)
+
+data <- read_excel("C:/Users/abbys/OneDrive - USNH/R Data Science/data_science_final/Seabird_and_Plastic_Ingestion_Data.xlsx")
+
+Sheet_names <- getSheetNames("C:/Users/abbys/OneDrive - USNH/R Data Science/data_science_final/Seabird_and_Plastic_Ingestion_Data.xlsx")
+
+sample_inventory <- read.xlsx("C:/Users/abbys/OneDrive - USNH/R Data Science/data_science_final/Seabird_and_Plastic_Ingestion_Data.xlsx",sheet=1)
+
+sample_descriptions <- read.xlsx("C:/Users/abbys/OneDrive - USNH/R Data Science/data_science_final/Seabird_and_Plastic_Ingestion_Data.xlsx",sheet=2)
+
+plastics <- read.xlsx("C:/Users/abbys/OneDrive - USNH/R Data Science/data_science_final/Seabird_and_Plastic_Ingestion_Data.xlsx",sheet=3)
+
+```
+
+```{r Joining Data Tables, include=FALSE}
+Individual_IDs <- sample_inventory %>% 
+  select(Original.Sample.ID,Species.Collected,Species.collected.from)
+
+sample_descriptions_2 <- sample_descriptions %>% 
+  select(Original.Sample.ID,Sex,Number.of.Fibers,Number.of.Plastic.Particles)
+
+#Select for relevant columns 
+
+IDs_joined <- Individual_IDs %>% 
+  inner_join(sample_descriptions_2,by=join_by(Original.Sample.ID==Original.Sample.ID))
+
+#joined data tables so that the unique IDs that have the plastic counts also have the species name
+
+species_IDs <- IDs_joined %>%
+  mutate(sample_species = case_when(
+    grepl("^adult", Original.Sample.ID) ~ IDs_joined$Species.Collected,
+    grepl("^chick", Original.Sample.ID) ~ IDs_joined$Species.Collected,
+    grepl("^diet", Original.Sample.ID) ~ IDs_joined$Species.collected.from,
+    TRUE ~ NA_character_
+  ))
+#create new column that adds bird species name from the column that bird species is listed in so that the species are not split between two columns 
+
+```
+
+```{r Plastics in Deceased bird samples, include=FALSE}
+birds.collected <- c("Tern sp.","Tern Sp.","ROST","COTE","HERG","GBBG","Gull sp.","Gull Sp.")
+
+plastic_by_species <- species_IDs %>% 
+  drop_na(sample_species, Number.of.Plastic.Particles) %>% 
+  filter(sample_species%in%birds.collected,) %>% 
+  mutate(sample_species = case_when(
+    as.character(sample_species) %in% c("Tern sp.","Tern Sp.") ~ "Tern Species",
+    as.character(sample_species) %in% c("Gull sp.", "Gull Sp.") ~ "Gull Species",
+    TRUE ~ as.character(sample_species)))
+```
+
+```{r, echo=FALSE}
+#| fig-cap: "Figure 2. Boxplot depicting species and the number of plastic particles ingested. Species are represented by their four letter alpha codes (HERG, GBBG, COTE, ROST). If the species could not be identified, individuals were characterized into Gull or Tern Species"
+ggplot(plastic_by_species,aes(x=sample_species,y=Number.of.Plastic.Particles,color=sample_species))+
+  geom_boxplot()+
+  theme(axis.text.x = element_text(angle=45,hjust=1),legend.position = "none", plot.title = element_text(hjust=0.5))+
+  xlab("Species Code")+
+  ylab("Number of Plastic Particles")+
+  labs(title="Plastic Ingestion by Species")
+
+```
+
+An ANOVA was conducted and determined that there is a relationship between species and the number of plastic particles ingested (F(5,224)=7.031, p \< 0.001). A Tukey test was used as a post test to determine which species ingested the most plastics relatively. The Herring gull was the species that ingested the most plastics, having a significant difference from Roseate terns (p=0.038), Great-black backed gulls (p \< 0.01), and Common terns (p \< 0.001).
+
+```{r Plastic ingestion by species ANOVA, include=FALSE}
+
+plastic_anova <- aov(Number.of.Plastic.Particles ~ sample_species, data = plastic_by_species)
+summary(plastic_anova)
+
+tukey_1 <- TukeyHSD(plastic_anova)
+print(tukey_1)
+```
+
+```{r plastic injestion by sex, include=FALSE}
+bird.sexes <- c("Female","Male","M")
+
+
+plastic_by_sex <- plastic_by_species %>% 
+  drop_na(Sex) %>% 
+  filter(Sex%in%bird.sexes) %>% 
+  mutate(gender = case_when(
+    as.character(Sex) %in% c("Male", "M") ~ "Male",
+    TRUE ~ as.character(Sex)
+    ))
+
+```
+
+```{r, echo=FALSE}
+#| fig-cap: "Figure 3. Boxplot depicting the number of plastic particles based on sex within species.  Unidentified species could not be sexed so there is no box plot for “gull species” or “tern species”."
+ggplot(plastic_by_sex, aes(x=gender,y=Number.of.Plastic.Particles))+
+  geom_boxplot()+
+  facet_wrap(~sample_species)+
+  theme(plot.title = element_text(hjust=0.5))+
+  xlab("Sex")+
+  ylab("Number of Plastic Particles")+
+  labs(title="Plastic Ingestion by Sex")
+```
+
+The sample size for sexed individuals is less than the overall study sample size, most "diet-xxx" do not have an associated sex. Unidentified species could not be sexed so there is no box plot for “gull species” or “tern species”.
+
+```{r, include=FALSE}
+linear_model <- lm(Number.of.Plastic.Particles~sample_species+gender,data=plastic_by_sex)
+
+summary(linear_model)
+avPlots(linear_model)
+```
+
+A linear model used to analyze the relationship between plastic ingestion by sex and species (F(4,26)=2.892, p=0.042, R^2^=0.30, R^2^adjusted=0.20). The model showed that there was no significance for plastic ingestion by sex (p=0.119). However, the model did show a significant relationship between HERG and number of plastic particles, by changing species to Herring gull the number of plastic particles increases by 1.98 (p = 0.006).
+
+### **Discussion** {style="text-align: left"}
+
+The number of plastic particles ingested by Herring gulls varied significantly from Great-black backed gulls, Roseate terns, and the Common terns. The diet of Herring gulls and Great- black backed gulls is very similar [@audubon2025a]. The higher number of plastics in Herring gulls suggests there is something different about where or what these gulls are eating despite the similar diets. During the breeding season, the more aggressive Great-black backed gulls often out compete Herring gulls for larger prey [@rome2004]. The gull colony on Appledore resides on the island during the summer breeding season, it is possible that the prey the Herring gulls can capture is more contaminated with plastics than that of the Great-black backed gulls. Future study and analysis could focus on the specific diets of the two species of gulls in this colony. For example, a study on a colony in Canada used carbon and nitrogen isotopes to find that the great black backed gulls had higher concentration of seals and crab in their diets, while the herring gulls had crab, sand lace, and terrestrial invertebrates[@ronconi2014]. A similar study on the gull colony of Appledore may allow us to see what prey species the Herring gulls are ingesting and from there we could determine where plastics are becoming concentrated in the ecosystem. Terns will feed mostly on small fish species such as hake, sand lance, and herring[@yakola2021]. Due to their smaller morphology, terns are generally less opportunistic when foraging compared to gulls. Since there was only one tern sample that contained ingested plastics
+
+There was no significant difference in the plastic ingestion between sex of the seabird species. Samples that did have an associated sex were deceased birds and some of the diet samples, this led to a smaller sample size for comparison between sexes. Gulls and terns can be quite difficult to sex as their plumage and morphology for breeding individuals are identical within species. For a future study it would be beneficial to more diligently record the sex of the bird that a sample was collected from so that the effect of sex on plastic ingestion could be analyzed further.
+
+Overall, we found that herring gulls ingested the most plastic particles of the four seabird species included in the study. As ocean plastic continues to accumulate and affect marine ecosystems seabird diets should continue to be monitored for plastic concentrations [@thushari2020a; @wilcox2015]. This data set can be used in the future as a starting point for determining an increase or decrease in ingested plastics of seabirds.
